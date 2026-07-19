@@ -64,7 +64,11 @@ Two useful details:
   decryption must reproduce that length precisely, and the stub tells us what
   it should be.
 - **The main module** (`EBOOT.BIN`) is module `hell2k`, key tag `0x88CF097F` —
-  a sixth distinct tag, different from all five game-sharing modules.
+  a sixth distinct tag, different from all five game-sharing modules — and it
+  uses **decrypt mode 9**, whereas all five game-sharing modules use **mode
+  10**. The mode selects which variant of the tag transform applies, so this
+  one disc exercises two of them. Useful: whichever variant gets implemented
+  first, this disc can validate it.
 - **`data_en.pkb` opens with a build path**: `/cygdrive/d/sce_...`. The asset
   archive carries absolute paths from the original build machine, which will be
   worth mining for internal file and module names once the archive format is
@@ -148,10 +152,42 @@ of the five, and a title whose gameplay ("chop wood rhythmically") implies very
 little 3D. Confirm with `allegrexrecomp cover` once it is decrypted; the VFPU
 percentage is the real cost signal, not the file size.
 
+## Decryption status
+
+The toolkit's KIRK CMD1 layer — the part that actually decrypts — is done and
+tested (toolkit phase 2a). What remains is the per-tag transform that builds
+the CMD1 header from a `~PSP` header.
+
+Probing this disc produced a useful negative result. `allegrexrecomp decrypt`
+scans a module for an embedded CMD1 metadata block using a tightly constrained
+structural signature, and finds none in any module here:
+
+```
+$ allegrexrecomp decrypt b02_bootbin.dat
+module:   boot_bin
+tag:      0x4597CB4E   decrypt mode 10
+sizes:    4105088 encrypted -> 4104742 decrypted
+
+probing for a KIRK CMD1 metadata block...
+  none found in the first 0x400 bytes
+```
+
+So the CMD1 header is **constructed** by the tag layer rather than sitting in
+the `~PSP` header at a fixed offset — meaning that layer does real
+cryptographic work, not a memcpy. Worth knowing before anyone spends time
+looking for it.
+
+Note this is **not** a blocker for recompilation. Phase 3 needs plaintext, not
+necessarily the toolkit's own decryptor;
+[`pspdecrypt`](https://github.com/John-K/pspdecrypt) (GPL-3.0) run as a
+separate process produces it today, the same way PPSSPP is used as an oracle.
+
 ## Open items
 
-- **Decryption** (toolkit phase 2) — blocks everything. See
+- **The tag transform** (toolkit phase 2b) — see
   [DECRYPT.md](https://github.com/sp00nznet/psprecomp/blob/main/docs/DECRYPT.md).
+  This disc is a good validation target because it exercises both mode 9 and
+  mode 10.
 - **`RPK` archive format** — `data_en.pkh` is a 160 KB index (`RPK\x1a`) over
   the 60 MB `data_en.pkb`. Not on the critical path for the standalone
   microgames, which do not use it, but needed for the main game.
