@@ -1,0 +1,52 @@
+# Build output
+build/
+out/
+*.obj
+*.exe
+*.pdb
+*.ilk
+
+# Extraction output — never committed
+work/
+
+# Game data is never committed — bring your own dump
+roms/
+*.iso
+*.cso
+*.zip
+*.pbp
+*.prx
+*.dat
+EBOOT.BIN
+BOOT.BIN
+DATA.PSP
+DATA.PSAR
+*.pkb
+*.pkh
+*.pmf
+*.sgb
+
+# PSP decryption keys are not distributed here — supply your own
+keys/
+*.keys
+
+# Generated C: committed once the emitter is real (it is the project's source
+# of truth, as in other recomp projects). Ignored until then so a half-built
+# tree cannot be pushed by accident.
+games/*/generated/
+
+# IDA / Ghidra databases
+*.i64
+*.idb
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+
+# Editor / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
