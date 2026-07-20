@@ -151,7 +151,6 @@ $tool = "build\psprecomp\tools\allegrexrecomp\Release\allegrexrecomp.exe"
 wtf-psp-recomp/
 ├── psprecomp/        # the toolkit, as a git submodule
 ├── scripts/          # extract.ps1 — map a dump, pull the boot chain
-├── games/wtf/        # per-module recompilation config
 ├── docs/             # NOTES.md — findings specific to this title
 └── work/             # gitignored: dumps, decrypted modules, generated C
 ```
