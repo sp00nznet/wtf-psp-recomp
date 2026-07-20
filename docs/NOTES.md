@@ -164,14 +164,26 @@ each byte-exact against the size its `~PSP` header declares.
 
 | Module | `.text` | functions | reached | instructions | VFPU | imports | indirect |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Lumberjack | 584 KB | 2206 | 75.0% | 112,026 | 0.19% | 134 | 38 |
-| Lumberjack Challenge | 586 KB | 2211 | 75.0% | 112,541 | 0.19% | 134 | 38 |
-| Séance | 601 KB | 2312 | 75.6% | 116,283 | 0.18% | 134 | 40 |
-| Pendemonium | 603 KB | 2292 | 75.0% | 115,755 | 0.18% | 134 | 40 |
-| Baseball Superstar | 656 KB | 2428 | 71.8% | 120,620 | 0.20% | 134 | 38 |
-| `hell2k` (main) | 961 KB | 3410 | 70.2% | 172,794 | 0.14% | 184 | 58 |
+| Lumberjack | 584 KB | 3376 | 89.0% | 132,979 | 0.16% | 137 | 60 |
+| Lumberjack Challenge | 586 KB | 3381 | 89.1% | 133,688 | 0.16% | 137 | 60 |
+| Séance | 601 KB | 3484 | 89.2% | 137,181 | 0.15% | 137 | 62 |
+| Pendemonium | 603 KB | 3485 | 89.3% | 137,880 | 0.15% | 137 | 62 |
+| Baseball Superstar | 656 KB | 3886 | 88.2% | 148,217 | 0.16% | 137 | 60 |
+| `hell2k` (main) | 961 KB | 5419 | 88.1% | 216,743 | 0.11% | 204 | 102 |
 
 Zero invalid instructions in any module.
+
+Coverage reached ~89% once seeding included the relocation tables. The five
+microgames are relocatable PRXs, so their stored function pointers — thread
+entries, callbacks, vtables — are enumerated exactly from `R_MIPS_32`
+relocations (2,633 of them on Lumberjack). `hell2k` is statically linked, so
+its relocation sections are empty and its pointers had to be recognised by
+shape instead — a heuristic, and labelled as one.
+
+Note the two module shapes on this one disc: the game-sharing modules are
+relocatable PRXs (`ET_PSP_PRX`, linked at 0), while `EBOOT.BIN` is a static
+executable (`ET_EXEC`) at `0x08900000`. Anything that assumes one shape breaks
+on the other, which makes this disc a useful test of both paths.
 
 Three things worth recording:
 

@@ -65,12 +65,12 @@ assertion — reproduce it with `scripts/extract.ps1`.
 
   | Module | `.text` | functions | reached | instructions | VFPU | imports |
   |---|---:|---:|---:|---:|---:|---:|
-  | Lumberjack | 584 KB | 2206 | 75.0% | 112,026 | **0.19%** | 134 |
-  | Lumberjack Challenge | 586 KB | 2211 | 75.0% | 112,541 | **0.19%** | 134 |
-  | Séance | 601 KB | 2312 | 75.6% | 116,283 | **0.18%** | 134 |
-  | Pendemonium | 603 KB | 2292 | 75.0% | 115,755 | **0.18%** | 134 |
-  | Baseball Superstar | 656 KB | 2428 | 71.8% | 120,620 | **0.20%** | 134 |
-  | `hell2k` (main) | 961 KB | 3410 | 70.2% | 172,794 | **0.14%** | 184 |
+  | Lumberjack | 584 KB | 3376 | 89.0% | 132,979 | **0.16%** | 137 |
+  | Lumberjack Challenge | 586 KB | 3381 | 89.1% | 133,688 | **0.16%** | 137 |
+  | Séance | 601 KB | 3484 | 89.2% | 137,181 | **0.15%** | 137 |
+  | Pendemonium | 603 KB | 3485 | 89.3% | 137,880 | **0.15%** | 137 |
+  | Baseball Superstar | 656 KB | 3886 | 88.2% | 148,217 | **0.16%** | 137 |
+  | `hell2k` (main) | 961 KB | 5419 | 88.1% | 216,743 | **0.11%** | 204 |
 
   Zero invalid instructions anywhere. **The VFPU — the usual reason the PSP is
   called a hard recompilation target — is 0.2% of this game**, touched by ~2%
@@ -85,21 +85,24 @@ assertion — reproduce it with `scripts/extract.ps1`.
 - 🚧 **The remaining 25%** of `.text` is reachable only through function
   pointers (callbacks, vtables, thread entries). `.rel.text` lists every
   address the loader patches, which is how to recover them.
-- ✅ **Recompiled.** Lumberjack emits **2,206 C functions across 256,566
-  lines**, which compile with MSVC, link against the psprecomp runtime, and
-  run:
+- ✅ **Recompiled — including the main game executable.** Both Lumberjack and
+  `hell2k` emit C that compiles with MSVC, links against the psprecomp runtime,
+  and runs:
 
   ```
-  registered 2212 recompiled functions
-  memory: 32 MB RAM, 2048 KB VRAM, 16 KB scratchpad
-  module_start 0x000183AC -> resolved
+  registered 3376 recompiled functions   (Lumberjack)
+  registered 5419 recompiled functions   (hell2k, the main game)
+  module_start resolved in both
   ```
 
   Whole pipeline end to end: **disc → decrypt → discover → emit → compile →
-  link → run.** Two edge cases this module forced, each producing exactly one
-  compile error in a quarter of a million lines: a delay slot that is also a
-  branch target, and a tail-call thunk whose target lies *below* its own entry
-  point.
+  link → run.**
+
+  Three bugs this disc forced that synthetic tests would never have found —
+  each showing up exactly once in a quarter of a million generated lines: a
+  delay slot that is also a branch target; a tail-call thunk whose target lies
+  *below* its own entry point; and an import reached by a branch rather than a
+  `jal` (which linked fine on the microgames and failed only on `hell2k`).
 - 🚧 **The HLE layer** — the module registers and resolves, but the first
   firmware call traps: there is no `sceKernel` yet. Lumberjack imports 134
   functions, and bringing it up is largely the process of watching that list
