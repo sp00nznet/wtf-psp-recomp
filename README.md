@@ -38,29 +38,59 @@ assertion — reproduce it with `scripts/extract.ps1`.
   identified. The container stack (ISO9660 → PBP → `~PSP` → ELF) handles every
   layer this disc uses.
 - ✅ **The five game-sharing microgames identified** — each a PBP wrapping a
-  `~PSP` module, with its own title and its own decryption key tag:
+  `~PSP` module:
 
-  | Module | Microgame | Decrypted size | Key tag |
-  |---|---|---:|---|
-  | `b00_bootbin.dat` | Baseball Superstar | 4,212,342 | `0xF8710C50` |
-  | `b02_bootbin.dat` | Lumberjack | 4,104,742 | `0x4597CB4E` |
-  | `b04_bootbin.dat` | Pendemonium | 4,393,310 | `0x1F628E58` |
-  | `b80_bootbin.dat` | Lumberjack Challenge | 4,092,606 | `0xB4050E6E` |
-  | `b81_bootbin.dat` | Séance | 4,725,526 | `0x9B09CE7E` |
+  | Module | Microgame | Decrypted size | Mode | Key tag |
+  |---|---|---:|---:|---|
+  | `b00_bootbin.dat` | Baseball Superstar | 4,212,342 | 10 | `0x09000000` |
+  | `b02_bootbin.dat` | Lumberjack | 4,104,742 | 10 | `0x09000000` |
+  | `b04_bootbin.dat` | Pendemonium | 4,393,310 | 10 | `0x09000000` |
+  | `b80_bootbin.dat` | Lumberjack Challenge | 4,092,606 | 10 | `0x09000000` |
+  | `b81_bootbin.dat` | Séance | 4,725,526 | 10 | `0x09000000` |
+
+  *(An earlier revision listed five different tags here, read from header
+  offset `0x130`. That offset falls inside the encrypted key material, so it
+  yields a different plausible-looking value per module — it was noise. The tag
+  is at `0xD0`, verified against an independent decryptor.)*
+
+- ✅ **All six modules decrypted and analyzed.** Every output is byte-exact
+  against the size its `~PSP` header declares.
 
 - ✅ **Main executable identified** — `SYSDIR/EBOOT.BIN`, a `~PSP` module whose
   internal name is **`hell2k`** (the game's development codename; the Japanese
-  original is *Bakudan Handan*), key tag `0x88CF097F`. Its declared decrypted
-  size is 1,224,764 bytes — *exactly* the size of the zeroed `BOOT.BIN` stub,
-  which gives decryption a free correctness check.
-- 🚧 **Decryption** — `BOOT.BIN` is zeroed, as on essentially every retail UMD,
-  so the real code is the encrypted `EBOOT.BIN`. All 28 executable modules on
-  this disc are encrypted, without exception. This is the current frontier and
-  it is toolkit work, not game work — see
-  [psprecomp `docs/DECRYPT.md`](https://github.com/sp00nznet/psprecomp/blob/main/docs/DECRYPT.md).
-- ⬜ **Recompiled** — function discovery and the C emitter, once there is
-  plaintext to run them on.
+  original is *Bakudan Handan*), mode 9, key tag `0xC0CB167C`. Its declared
+  decrypted size is 1,224,764 bytes — *exactly* the size of the zeroed
+  `BOOT.BIN` stub, and decryption reproduces it precisely.
+- ✅ **Function discovery running on all six modules:**
+
+  | Module | `.text` | functions | reached | instructions | VFPU | imports |
+  |---|---:|---:|---:|---:|---:|---:|
+  | Lumberjack | 584 KB | 2206 | 75.0% | 112,026 | **0.19%** | 134 |
+  | Lumberjack Challenge | 586 KB | 2211 | 75.0% | 112,541 | **0.19%** | 134 |
+  | Séance | 601 KB | 2312 | 75.6% | 116,283 | **0.18%** | 134 |
+  | Pendemonium | 603 KB | 2292 | 75.0% | 115,755 | **0.18%** | 134 |
+  | Baseball Superstar | 656 KB | 2428 | 71.8% | 120,620 | **0.20%** | 134 |
+  | `hell2k` (main) | 961 KB | 3410 | 70.2% | 172,794 | **0.14%** | 184 |
+
+  Zero invalid instructions anywhere. **The VFPU — the usual reason the PSP is
+  called a hard recompilation target — is 0.2% of this game**, touched by ~2%
+  of functions. And the five microgames report *identical* import counts and
+  near-identical VFPU density, confirming they share one engine: work done for
+  the first transfers to all five.
+- 🚧 **Decryption is bootstrapped, not native.** psprecomp's own KIRK CMD1
+  layer is done, but the `~PSP` tag transform above it is not, so plaintext
+  currently comes from [`pspdecrypt`](https://github.com/John-K/pspdecrypt)
+  (GPL-3.0) run as a separate process — the same posture as PPSSPP-as-oracle.
+  Nothing is linked and this repo stays MIT. See [Decryption](#decryption) below.
+- 🚧 **The remaining 25%** of `.text` is reachable only through function
+  pointers (callbacks, vtables, thread entries). `.rel.text` lists every
+  address the loader patches, which is how to recover them.
+- ⬜ **Recompiled** — the C emitter.
 - ⬜ **Playable** — one microgame reaching a rendered frame.
+
+**First target: `b02` Lumberjack.** Smallest `.text`, fewest functions, and
+0.19% VFPU. That was a guess from the title's premise in the previous revision;
+it is now measured.
 
 This README tracks *WTF*'s progress as it comes up.
 
@@ -93,6 +123,34 @@ cmake --build build --config Release
 
 `extract.ps1` writes to `work/` (gitignored) and prints a report. Nothing it
 produces is committed.
+
+## Decryption
+
+Every executable on the disc is an encrypted `~PSP` module. Until psprecomp's
+own tag transform lands, plaintext comes from
+[`pspdecrypt`](https://github.com/John-K/pspdecrypt) — GPL-3.0, so it is run as
+a **separate process** and never linked or vendored, exactly like PPSSPP is used
+as an oracle. This repo and the toolkit stay MIT.
+
+```bash
+# in WSL, or any Linux box
+sudo apt-get install -y g++ make zlib1g-dev libssl-dev
+git clone https://github.com/John-K/pspdecrypt && cd pspdecrypt
+make CC=gcc CXX=g++ -j4
+
+# game-sharing microgames are PBPs; -P reaches the executable inside
+./pspdecrypt -P -o b02_lumberjack.elf .../b02_bootbin.dat
+# the main executable is a bare ~PSP
+./pspdecrypt -o eboot_hell2k.elf .../EBOOT.BIN
+```
+
+Each output should be **byte-exact** against the size its `~PSP` header
+declares — `allegrexrecomp info` on the encrypted module prints that number, so
+the check is free. Then:
+
+```powershell
+.\build\psprecomp\tools\allegrexrecomp\Release\allegrexrecomp.exe funcs work\dec\b02_lumberjack.elf
+```
 
 ## Layout
 

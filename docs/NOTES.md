@@ -127,11 +127,18 @@ All five:
 
 | Module | Title | Decrypted ELF | Decrypt mode | Key tag |
 |---|---|---:|---:|---|
-| `b00_bootbin.dat` | Baseball Superstar | 4,212,342 | 10 | `0xF8710C50` |
-| `b02_bootbin.dat` | Lumberjack | 4,104,742 | 10 | `0x4597CB4E` |
-| `b04_bootbin.dat` | Pendemonium | 4,393,310 | 10 | `0x1F628E58` |
-| `b80_bootbin.dat` | Lumberjack Challenge | 4,092,606 | 10 | `0xB4050E6E` |
-| `b81_bootbin.dat` | Séance | 4,725,526 | 10 | `0x9B09CE7E` |
+| `b00_bootbin.dat` | Baseball Superstar | 4,212,342 | 10 | `0x09000000` |
+| `b02_bootbin.dat` | Lumberjack | 4,104,742 | 10 | `0x09000000` |
+| `b04_bootbin.dat` | Pendemonium | 4,393,310 | 10 | `0x09000000` |
+| `b80_bootbin.dat` | Lumberjack Challenge | 4,092,606 | 10 | `0x09000000` |
+| `b81_bootbin.dat` | Séance | 4,725,526 | 10 | `0x09000000` |
+
+> **Correction.** An earlier revision of this file listed five *different* tags
+> here, read from header offset `0x130`. That offset lands inside the encrypted
+> key material, so each module produces a different plausible-looking 32-bit
+> value there — and a satisfying but false conclusion ("five distinct tags").
+> The tag is at **`0xD0`**, cross-checked against an independent decryptor. All
+> five microgames share one tag; only the main executable differs.
 
 **Why this is the right first target.** A standalone module is self-contained:
 one relocatable PRX at load address `0x00000000`, one segment, a known entry
@@ -147,10 +154,59 @@ asset files can be attributed to specific microgames by prefix. `b81`/Séance
 alone has 24 `.pmf` streams — it is the most asset-heavy of the five and
 probably the wrong one to start with.
 
-**Suggested first target: `b02` (Lumberjack)** — the smallest decrypted module
-of the five, and a title whose gameplay ("chop wood rhythmically") implies very
-little 3D. Confirm with `allegrexrecomp cover` once it is decrypted; the VFPU
-percentage is the real cost signal, not the file size.
+**First target: `b02` (Lumberjack)** — smallest `.text`, fewest functions,
+0.19% VFPU. Previously a guess from the title's premise; now measured.
+
+## Analysis of the decrypted modules
+
+All six decrypted (see the Decryption section in the README for the bootstrap),
+each byte-exact against the size its `~PSP` header declares.
+
+| Module | `.text` | functions | reached | instructions | VFPU | imports | indirect |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Lumberjack | 584 KB | 2206 | 75.0% | 112,026 | 0.19% | 134 | 38 |
+| Lumberjack Challenge | 586 KB | 2211 | 75.0% | 112,541 | 0.19% | 134 | 38 |
+| Séance | 601 KB | 2312 | 75.6% | 116,283 | 0.18% | 134 | 40 |
+| Pendemonium | 603 KB | 2292 | 75.0% | 115,755 | 0.18% | 134 | 40 |
+| Baseball Superstar | 656 KB | 2428 | 71.8% | 120,620 | 0.20% | 134 | 38 |
+| `hell2k` (main) | 961 KB | 3410 | 70.2% | 172,794 | 0.14% | 184 | 58 |
+
+Zero invalid instructions in any module.
+
+Three things worth recording:
+
+- **The VFPU is a non-issue for this game.** 0.14–0.20% of instructions, ~2% of
+  functions. The standard objection to PSP static recompilation does not apply
+  here. (Whether it applies to a 3D engine is a separate question; the same
+  measurement answers it per-title.)
+- **The five microgames share an engine.** Identical import counts (134) and
+  near-identical VFPU density is not a coincidence — engine work done for the
+  first transfers to all five. This is the anthology payoff the project was
+  picked for.
+- **`hell2k` imports 184 firmware functions** to the microgames' 134. The extra
+  50 are the shell: video playback (`.pmf` streams), the `RPK` archive, save
+  data, and the ad-hoc networking behind game sharing.
+
+### Module layout (Lumberjack, representative)
+
+```
+.text                 0x00000000  597,588 bytes    the code
+.sceStub.text         0x00091E54    1,304 bytes    import thunks (163 stubs)
+.lib.ent              0x00092370       16 bytes    export table
+.lib.stub             0x00092388      460 bytes    import table
+.rodata.sceModuleInfo 0x00092558       52 bytes    module descriptor
+.data                 0x00093020  3,283,040 bytes  assets
+.rel.text             (non-alloc)  190,816 bytes   relocations
+```
+
+The single `PT_LOAD` is `rwx` and spans code *and* data, so any analysis that
+trusts the segment rather than `.text` measures 3.3 MB of assets as
+instructions. That is the difference between 70.8% and 99.81% decode coverage.
+
+`module_start` (`0x000183AC`) is **not** the program — it makes four firmware
+calls, builds some pointers, and returns. The real entry is handed to a thread
+as a *pointer*, which is why discovery has to harvest `jal` targets by scanning
+rather than relying on reachability alone.
 
 ## Decryption status
 
