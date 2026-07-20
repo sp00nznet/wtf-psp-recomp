@@ -85,7 +85,25 @@ assertion — reproduce it with `scripts/extract.ps1`.
 - 🚧 **The remaining 25%** of `.text` is reachable only through function
   pointers (callbacks, vtables, thread entries). `.rel.text` lists every
   address the loader patches, which is how to recover them.
-- ⬜ **Recompiled** — the C emitter.
+- ✅ **Recompiled.** Lumberjack emits **2,206 C functions across 256,566
+  lines**, which compile with MSVC, link against the psprecomp runtime, and
+  run:
+
+  ```
+  registered 2212 recompiled functions
+  memory: 32 MB RAM, 2048 KB VRAM, 16 KB scratchpad
+  module_start 0x000183AC -> resolved
+  ```
+
+  Whole pipeline end to end: **disc → decrypt → discover → emit → compile →
+  link → run.** Two edge cases this module forced, each producing exactly one
+  compile error in a quarter of a million lines: a delay slot that is also a
+  branch target, and a tail-call thunk whose target lies *below* its own entry
+  point.
+- 🚧 **The HLE layer** — the module registers and resolves, but the first
+  firmware call traps: there is no `sceKernel` yet. Lumberjack imports 134
+  functions, and bringing it up is largely the process of watching that list
+  stop being hit.
 - ⬜ **Playable** — one microgame reaching a rendered frame.
 
 **First target: `b02` Lumberjack.** Smallest `.text`, fewest functions, and
