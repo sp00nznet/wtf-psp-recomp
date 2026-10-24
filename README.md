@@ -48,18 +48,20 @@ Three more practical reasons:
 
 ## Status
 
-**Lumberjack recompiles to C that compiles, links, and executes. It does not
-render yet.** Everything below is tool output, not assertion — reproduce it with
-`scripts/extract.ps1`.
+**Two microgames play in a window, with keyboard or controller.** Lumberjack
+and Pendemonium run from the WTF title screen through the Job Share menu and
+their own title cards into the game, and Lumberjack on to its paycheck.
 
-| Stage | State | Detail |
-|-------|-------|--------|
-| **Disc mapped** | ✅ | ULUS10172, 90 entries, `PARAM.SFO` read, full boot chain identified |
-| **Modules decrypted** | ✅ | All six, byte-exact against the size each `~PSP` header declares |
-| **Recompiled to C** | ✅ | Lumberjack: 5,849 functions, 417,749 lines, 150 firmware imports |
-| **Compiles & links** | ✅ | 13,682 dispatch entries registered, 109 firmware functions |
-| **Executes** | ✅ | Runs through libc start-up, heap established (15.9 MB), static constructors run |
-| **Renders** | ❌ | Stalls in start-up before submitting geometry — see [BRINGUP.md](psprecomp/docs/BRINGUP.md) |
+| Microgame | State |
+|---|---|
+| Lumberjack (`b02`) | ✅ Plays: title, menu, game, paycheck |
+| Pendemonium (`b04`) | ✅ Plays: a lit 3D factory, capping pens |
+| Lumberjack Challenge (`b80`) | 🔨 Reaches its title screen; not played further |
+| Baseball Superstar (`b00`) | ❌ Bad memory reads at start-up |
+| Séance (`b81`) | ❌ Stops on an indirect call to code discovery missed |
+
+Not yet: sound is mixed but not played to a device, the window is Windows-only,
+and the main game (`EBOOT.BIN`, codename *hell2k*) has not been attempted.
 
 ### The five game-sharing microgames
 
@@ -74,33 +76,10 @@ Each a PBP wrapping a `~PSP` module:
 | `b81_bootbin.dat` | Séance | 4,725,526 | `0x09000000` |
 
 The main executable is `SYSDIR/EBOOT.BIN`, a `~PSP` module whose internal name is
-**`hell2k`** — the game's development codename.
+**`hell2k`** -- the game's development codename.
 
-> An earlier revision of this file listed five *different* key tags, read from
-> header offset `0x130`. That offset falls inside the encrypted key material, so
-> it yields a different plausible-looking value per module. It was noise. The tag
-> is at `0xD0`, verified against an independent decryptor. Left here because a
-> plausible wrong number is the characteristic failure of this work, and this one
-> survived a while.
-
-### What's actually blocking a frame
-
-Lumberjack is the bring-up target. It reaches its allocator and stalls during
-start-up. Two real toolkit bugs were found and fixed getting this far, both
-affecting *every* recompiled program:
-
-- **`$ra` was never assigned by `jal`/`jalr`** — 2 assignments existed across
-  137,748 instructions where 9,814 belong.
-- **Firmware arguments 5–8 were read from the stack.** The PSP passes them in
-  `$t0`–`$t3`. The wrong read turned a valid alignment into garbage, so a correct
-  15.9 MB heap allocation was rejected — and every downstream symptom followed.
-
-Fixing the second eliminated a ten-billion-iteration spin and took dispatch
-misses from 19 to 1. The remaining blocker is a stack imbalance on an
-allocation-failure path, measured three independent ways.
-
-The full investigation — including every retraction, and there were several — is
-in [psprecomp/docs/BRINGUP.md](psprecomp/docs/BRINGUP.md).
+How it got here -- including every retraction, and there were several -- is in
+[psprecomp/docs/BRINGUP.md](psprecomp/docs/BRINGUP.md).
 
 ## Getting Started
 
@@ -135,22 +114,42 @@ pspdecrypt -P b02_bootbin.dat -o b02_lumberjack.elf
 pspdecrypt EBOOT.BIN -o eboot_hell2k.elf
 ```
 
-### Recompiling a module
+### Building and playing
+
+Decrypt the microgames into `work\dec\` as `<id>.elf` (`b02_lumberjack.elf`,
+`b04_pendemonium.elf`, ...; see above), then:
 
 ```powershell
-$tool = "build\psprecomp\tools\allegrexrecomp\Release\allegrexrecomp.exe"
-
-& $tool info  work\dec\b02_lumberjack.elf      # identify it
-& $tool funcs work\dec\b02_lumberjack.elf      # discovery report
-& $tool emit  work\dec\b02_lumberjack.elf work\gen lumberjack
+.\scripts\build.ps1
+.\build\games\wtf\Release\wtf_b04_pendemonium.exe
 ```
+
+`build.ps1` recompiles every module it finds into `build\gen\` and builds one
+executable per microgame. The generated C stays in `build\`: it is derived from
+your copy of the game and is never committed.
+
+| Keyboard | Controller | PSP |
+|---|---|---|
+| Arrow keys | D-pad | D-pad |
+| -- | Left stick | Analog stick |
+| Z | A | Cross |
+| X | B | Circle |
+| A | X | Square |
+| S | Y | Triangle |
+| Q / W | LB, LT / RB, RT | L / R |
+| Enter | Start | Start |
+| Backspace | Back | Select |
+
+Press Start at the WTF title, Cross on the job, Cross on START. In
+Pendemonium, Cross drops a cap.
 
 ## Layout
 
 ```
 wtf-psp-recomp/
 ├── psprecomp/        # the toolkit, as a git submodule
-├── scripts/          # extract.ps1 — map a dump, pull the boot chain
+├── games/wtf/        # the host: window, controls, one exe per microgame
+├── scripts/          # extract.ps1 (map a dump), build.ps1 (recompile + build)
 ├── docs/             # NOTES.md — findings specific to this title
 └── work/             # gitignored: dumps, decrypted modules, generated C
 ```
